@@ -286,6 +286,8 @@ mod.sem = psem(
   mean.height %~~% KoBi,
   mean.height %~~% ScSu,
   mean.height %~~% QuFa,
+  l.SSCI %~~% KoBi,
+  l.SSCI %~~% ScSu,
   l.SSCI %~~% QuFa,
   data = d.3 |> data.frame()
 )
@@ -319,7 +321,9 @@ models.month =
         mean.height %~~% KoBi,
         mean.height %~~% ScSu,
         mean.height %~~% QuFa,
-        l.SSCI %~~% QuFa,
+          l.SSCI %~~% KoBi,
+          l.SSCI %~~% ScSu,
+          l.SSCI %~~% QuFa,
         data = dd |> data.frame()
       )
       summary(mod.dd)$coefficients |>
