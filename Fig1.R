@@ -102,6 +102,32 @@ names(t.lab) = 0:23
 
 Anova(mod.2)
 
+# Estimatition of hourly p-value from individual models
+df.hour <- matrix(nrow = 1, ncol = 6) %>% as.data.frame() 
+colnames(df.hour) <- c("Value", "Std.Error", "DF", "t-value", "p-value", "hour")
+
+for (h in 0:23) {
+  tryCatch( # Catching non fitting models 
+  {mod.hour <- lme(T ~ log(TreeDiv),
+                    random = ~ 1|site/plot/date,
+                    data = d.2.2 |> filter(hour == h),
+                    correlation=corCAR1())
+  df <- summary(mod.hour)$tTable[2,] %>% matrix(nrow=1) %>% as.data.frame()
+  colnames(df) <- c("Value", "Std.Error", "DF", "t-value", "p-value")
+  df$hour <- h
+  df.hour <- rbind(df.hour,df)
+  },
+  warning=function(w) {},
+  error=function(e) {}
+  )
+}
+df.hour <- df.hour[-1,]
+lab.h = 
+  df.hour |>
+  add_row(Value = NA, Std.Error = NA, DF = NA, t.value = NA, p.value = 1.00, hour = 16) |> # adding non-fitted model
+  mutate(group = hour) |> 
+  mutate(lab = if_else(p.value < 0.001, "p < 0.001", paste0('p = ',round(p.value, 3))))
+
 #### >> 3.2 Monthly extremes ####
 #### >> 3.2.1 temperature maximum ####
 mod.1.tmax = lme(T.max ~ log(TreeDiv, base = 2) * month.f,
@@ -220,10 +246,14 @@ p.day =
        subtitle = "Sp. Rich.: p < 0.001, Hour: p < 0.001, Sp. Rich. x Hour: p < 0.001",
        x = 'Tree species richness x hour', 
        y = expression(paste('Hourly temperature [',~degree,'C]',sep=''))) +
+  geom_text(aes(x=4, y=23.25, label = lab),
+            data = lab.h, 
+            size = 3,
+            angle = 90) +
   facet_grid(cols = vars(group),
              labeller = labeller(group = t.lab)) +
   lims(y = c(min(results.day[[3]]$conf.low, results.day[[3]]$conf.high), 
-             max(results.day[[3]]$conf.low, results.day[[3]]$conf.high))) + 
+             (max(results.day[[3]]$conf.low, results.day[[3]]$conf.high)+1.5))) + 
   theme_bw() +
   theme(panel.grid = element_blank(), 
         panel.spacing.x = unit(0.6, "lines"), 
