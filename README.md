@@ -2,7 +2,7 @@
 
 **Authors:**
 
-Florian Schnabel+, Remy Beugnon+, Yang Bo+, Simone Cesarz, Nico Eisenhauer, Maria Dolores Perles Garcia, Georg Haehn, Werner Hardtle, Yuanyuan Huang, Matthias Kunz, Xiaojuan Liu, Nadia Cristina Castro Izaguirra, Pascal A. Niklaus, Goddert von Oheimb, Katherina A. Pietsch, Ronny Richter, Bernhard Schmid, Stefan Trogisch, Manfred Wendisch, Christian Wirth, Keping Ma\* , Helge Bruelheide\*
+Florian Schnabel*, Rémy Beugnon*, Bo Yang*, Ronny Richter, Nico Eisenhauer, Yuanyuan Huang, Xiaojuan Liu, Christian Wirth, Simone Cesarz, Andreas Fichtner, Maria D. Perles-Garcia, Georg J. A. Hähn, Werner Härdtle, Matthias Kunz, Nadia C. Castro Izaguirre, Pascal A. Niklaus, Goddert von Oheimb, Bernhard Schmid, Stefan Trogisch, Manfred Wendisch, Keping Ma†, Helge Bruelheide†
 
 **Article DOI:**
 
