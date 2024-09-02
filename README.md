@@ -10,4 +10,4 @@ Florian Schnabel*, Rémy Beugnon*, Bo Yang*, Ronny Richter, Nico Eisenhauer, Yua
 
 ## Folder description
 
-This folder contains all scripts used to built the models and figures of our paper.
+This folder contains all scripts and data used to build the models and figures of our paper.
