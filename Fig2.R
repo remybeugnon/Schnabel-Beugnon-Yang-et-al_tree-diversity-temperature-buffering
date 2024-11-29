@@ -222,6 +222,70 @@ p.month =
 p.month
 
 #### >> 4.2 Figure 2.B. ####
+
+df.macro.T = read.csv("macroclimate.csv") %>%
+  filter(year %in% 2014:2020) %>% 
+  select(year, month, avg.t = tmp_celsius, min.t = tmn_celsius , max.t = tmx_celsius)
+
+df.macro.spei = read.csv("macroclimate.csv") %>%
+  filter(year %in% 2014:2020) %>% 
+  select(date, year, month, spei = SPEI1) %>%
+  select(-date)
+
+# Montly df 
+d.1 = df.clim %>% 
+  filter(TreeDiv > 0 & year != 2014 & !is.na(T)) %>%
+  group_by(site, plot, year, month) %>%
+  summarise(Buff = mean(T)/ sd(T) , 
+            T.max = median(T[T>quantile(T,probs=c(.95))]),
+            T.med = median(T),
+            T.min = median(T[T<quantile(T,probs=c(.05))]),
+            TreeDiv = mean(TreeDiv))
+
+df.out <- matrix(nrow = 1, ncol = 7) %>% as.data.frame() 
+colnames(df.out) <- c("Value", "Std.Error", "DF", "t-value", "p-value", "month", 'year')
+for (y in 2015:2020) {
+  for (m in 1:12) {
+    mod.month <- lme(Buff~ log(TreeDiv, base = 2),
+                     random = ~ 1|site/plot,
+                     data = d.1 %>% filter(month == m, year == y))
+    
+    df <- summary(mod.month)$tTable[2,] %>% matrix(nrow=1) %>% as.data.frame()
+    colnames(df) <- c("Value", "Std.Error", "DF", "t-value", "p-value")
+    df$month = m
+    df$year = y
+    
+    df.out <- rbind(df.out,df)
+  }
+}
+df.out <- df.out[-1,]
+
+df.out = 
+  df.out |> 
+  left_join(df.macro.T, by = c('year', 'month')) |> 
+  left_join(df.macro.spei, by = c('year', 'month'))
+
+p.SPEI = 
+  ggplot(data = df.out, aes(y = Value, x = spei)) + 
+  geom_point(data = df.out, aes(y = Value, x = spei, color = spei)) + 
+  geom_errorbar(data = df.out, aes(ymin = Value - 1.96 * Std.Error,
+                                   ymax = Value + 1.96 * Std.Error,
+                                   x = spei)) + 
+  geom_smooth(data = df.out, aes(y = Value, x = spei), 
+              color = 'black', method = 'lm') +
+  scale_color_gradient(low = 'red', high = 'blue',
+                       name = "SPEI 1", breaks = seq(-2,2,1), lim = c(-2.5,2.5)) + 
+  labs(x = "Monthly SPEI1", y = 'Diversity effect\n on temperature buffering', 
+       title = '') +
+  theme_bw() + 
+  theme(panel.grid = element_blank(),
+        axis.text = element_text(size = 10),
+        text = element_text(size = 15), 
+        legend.position = 'none')
+
+p.SPEI
+
+#### >> 4.3 Figure 2.C. ####
 df.macro.T.year$group = df.macro.T.year$year %>% factor
 df.macro.spei$group = df.macro.spei$year %>% factor
 pred.1.2.p = left_join(pred.1.2  %>% data.frame(), 
@@ -245,10 +309,11 @@ p.year =
               alpha = .2, width = 0.05, size = .5) +
   geom_line(data = pred.1.2.3,
             aes(x, predicted, group = group),
-            color = 'black') +
+            color = 'black', linewidth= 2) +
   geom_line(data = pred.1.2.p,
-            aes(x, predicted, group = group, color = spei),
-            lty = 2) +
+            aes(x, predicted, group = group, 
+                color = spei),
+            lty = 2, linewidth = 1) +
   geom_label(data = data.frame(
                       x = 27.5,
                       y = c(2.22, 2.03, 2.095, 1.97, 2.155, 2.28),
@@ -259,26 +324,33 @@ p.year =
              color = 'gray50') +
   annotate(geom = 'text', x = 20 , y = 1.75, label = 'p < 0.001') + 
   scale_x_continuous(trans = 'log2', breaks = c(1,2,4,8,16, 24)) + 
-  scale_color_gradient(low = 'red', high = 'blue') + 
+  scale_color_gradient(low = 'red', high = 'blue',
+                       breaks = seq(-2,2,1), lim = c(-2.5,2.5)) + 
   labs(x = 'Tree species richness', y = "Annual temperature\nbuffering (1/CV)", 
        title = "Yearly temperature buffering",
-       color = "SPEI 12") +
+       color = "SPEI value") +
   lims(y = c(1.7,2.3)) + 
   theme_bw() + 
   theme(axis.ticks.y.right = element_line(color = 'blue'),
         axis.text.y.right  = element_text(color = 'blue'),
         axis.title.y.right =  element_text(color = 'blue'),
-        panel.grid = element_blank())
+        panel.grid = element_blank(),
+        axis.text = element_text(size = 10),
+        text = element_text(size = 15), 
+        legend.position = 'bottom')
 p.year
 
 #### >> 4.3 Figure ####
-p = ggarrange(p.month, p.year, 
-              nrow = 2, 
-              heights = c(.6,.4),
-              labels = paste0(LETTERS[1:2],'.')) 
+p = ggarrange(p.month,
+              p.SPEI,
+              p.year, 
+              nrow = 3, 
+              heights = c(.4,.3,.4),
+              labels = paste0(LETTERS[1:3],'.'),
+              align = 'hv') 
 p
 
 # Saving figure
 ggsave(filename = 'Figure2.png', 
-       height = 17, width = 20, 
+       height = 25, width = 20, 
        units = 'cm')
