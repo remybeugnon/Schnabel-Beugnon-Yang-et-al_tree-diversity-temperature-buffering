@@ -1,12 +1,14 @@
-# Tree diversity increases forest temperature buffering
+# Tree diversity increases forest temperature buffering via enhancing canopy density and structural diversity
 
 **Authors:**
 
 Florian Schnabel*, Rémy Beugnon*, Bo Yang*, Ronny Richter, Nico Eisenhauer, Yuanyuan Huang, Xiaojuan Liu, Christian Wirth, Simone Cesarz, Andreas Fichtner, Maria D. Perles-Garcia, Georg J. A. Hähn, Werner Härdtle, Matthias Kunz, Nadia C. Castro Izaguirre, Pascal A. Niklaus, Goddert von Oheimb, Bernhard Schmid, Stefan Trogisch, Manfred Wendisch, Keping Ma†, Helge Bruelheide†
 
-**Article DOI:**
+**Journal:** Ecology Letters
 
-**Data DOI:**
+**Article DOI:** TBA
+
+**Data DOI:** 10.5281/zenodo.13626945
 
 ## Folder description
 
