@@ -32,65 +32,61 @@ invisible(lapply(libs, library, character.only = T))
 
 #### > 2. Data ####
 # Loading data
-load("workspace_data.RData")
+unzip('climate-data.csv.zip')
+df.clim = read.csv('climate-data.csv')
 
 # Hourly scale dataset
 d.2.2 = df.clim %>% 
   mutate(date = paste0(year, month, day)) %>%
-  mutate(hour.f = factor(hour))
-
-# Monthly scale dataset
-d.2.1 = 
-  df.clim %>% 
-  group_by(site, plot, year, month) %>%
-  # calculation of min, median and maximum monthly temperatures
-  summarise(
-    T.max = median(temp[temp>quantile(temp,probs=c(.95))]),
-    T.med = median(temp),
-    T.min = median(temp[temp<quantile(temp,probs=c(.05))])) %>%
-  left_join(.,
-            df.clim.month.sum %>% 
-              dplyr::select(site, plot, year,
-                            month, month.f, 
-                            year.month, TreeDiv),
-            by = c('site', 'plot', 'year', 'month')
-  )
-
-# Removing bare plots from the study
-df.clim.month.sum = 
-  df.clim.month.sum %>%
+  mutate(hour.f = factor(hour)) |>
+  mutate(month.f = factor(month)) |>
+  mutate(year.month = year + (month-1)/12) |> 
   filter(TreeDiv > 0)
 
-
-df.clim.month.sum$year.month = 
-  df.clim.month.sum$year + (df.clim.month.sum$month-1)/12
-
-df.clim.month.sum$month.f =
-  df.clim.month.sum$month %>% 
-  factor()
+d.2.1 = 
+  df.clim |> 
+  filter(TreeDiv > 0 & year %in% 2015:2020 & !is.na(temp)) |>
+  filter(!(plot == 'E31' & year == 2020)) |> #logger fail
+  group_by(site, plot, TreeDiv, year, month) %>%
+  # calculation of min, median and maximum monthly temperatures
+  summarise(
+    T.max = median(temp[temp>quantile(temp,probs=c(.95), na.rm = T)], na.rm = T),
+    T.med = median(temp, na.rm = T),
+    T.min = median(temp[temp<quantile(temp,probs=c(.05), na.rm = T)], na.rm = T)) |>
+  mutate(month.f = factor(month)) |>
+  mutate(year.month = year + (month-1)/12)
 
 #### > 3. Statistical analyses ####
 #### >> 3.1 Daily scale ####
-# Hourly model
-mod.2 = lme(T ~ log(TreeDiv) * hour.f,
-            random = ~ 1|site/plot/date,
-            data = d.2.2,
-            correlation=corCAR1())
+# !!! DO NOT RUN 3.1 !!! #
+# !!! Fitting the model takes several days !!! #
+# The entire section was commented and replaced by pre-fitted models 
+# Load mod-day-pred.RDS and hourly-model.csv for pre-fitted models
+
+`mod-day-pred` = readRDS("mod-day-pred.RDS")
+mod.2 = `mod-day-pred`[[1]]
+mod.2.res = `mod-day-pred`[[2]]
+pred.2 = `mod-day-pred`[[3]]
+df.hour = read.csv('hourly-model.csv')
+
+# Model fit (do not run)
+# mod.2 = lme(temp ~ log(TreeDiv) * hour.f,
+#             random = ~ 1|site/plot/date,
+#             data = d.2.2,
+#             correlation=corCAR1(),
+#             na.action=na.exclude)
 summary(mod.2)
 
 # Prediction of the model outputs
-pred.2 = ggpredict(model = mod.2,   
-                   terms = c("TreeDiv", 'hour.f'))
+# pred.2 = ggpredict(model = mod.2,   
+#                    terms = c("TreeDiv", 'hour.f'))
 
 # Estimation of the random structure residuals
-mod.2.res = lme(T ~ 1,
-                random = ~ 1|site/plot/date,
-                data = d.2.2,
-                correlation=corCAR1())
-
-d.2$res = 
-  residuals(mod.2.res) + 
-  mod.2.res$coefficients$fixed
+# mod.2.res = lme(temp ~ 1,
+#                 random = ~ 1|site/plot/date,
+#                 data = d.2.2,
+#                 correlation=corCAR1(),
+#                 na.action=na.exclude)
 
 d.2.2$group = d.2.2$hour.f
 
@@ -100,32 +96,33 @@ t.lab = c('0-1','1-2','2-3','3-4','4-5','5-6','6-7',
           '19-20','20-21','21-22','22-23','23-0')
 names(t.lab) = 0:23
 
-Anova(mod.2)
+anova(mod.2)
 
-# Estimatition of hourly p-value from individual models
-df.hour <- matrix(nrow = 1, ncol = 6) %>% as.data.frame() 
-colnames(df.hour) <- c("Value", "Std.Error", "DF", "t-value", "p-value", "hour")
-
-for (h in 0:23) {
-  tryCatch( # Catching non fitting models 
-  {mod.hour <- lme(T ~ log(TreeDiv),
-                    random = ~ 1|site/plot/date,
-                    data = d.2.2 |> filter(hour == h),
-                    correlation=corCAR1())
-  df <- summary(mod.hour)$tTable[2,] %>% matrix(nrow=1) %>% as.data.frame()
-  colnames(df) <- c("Value", "Std.Error", "DF", "t-value", "p-value")
-  df$hour <- h
-  df.hour <- rbind(df.hour,df)
-  },
-  warning=function(w) {},
-  error=function(e) {}
-  )
-}
-df.hour <- df.hour[-1,]
-lab.h = 
+# Estimatition of hourly p-value from individual models (Do not run)
+# df.hour <- matrix(nrow = 1, ncol = 6) %>% as.data.frame() 
+# colnames(df.hour) <- c("Value", "Std.Error", "DF", "t-value", "p-value", "hour")
+# 
+# for (h in 0:23) {
+#   tryCatch( # Catching non fitting models 
+#   {mod.hour <- lme(temp ~ log(TreeDiv),
+#                     random = ~ 1|site/plot/date,
+#                     data = d.2.2 |> filter(hour == h),
+#                     correlation=corCAR1(),
+#                    na.action=na.exclude)
+#   df <- summary(mod.hour)$tTable[2,] %>% matrix(nrow=1) %>% as.data.frame()
+#   colnames(df) <- c("Value", "Std.Error", "DF", "t-value", "p-value")
+#   df$hour <- h
+#   df.hour <- rbind(df.hour,df)
+#   },
+#   warning=function(w) {},
+#   error=function(e) {}
+#   )
+# }
+# df.hour <- df.hour[-1,]
+lab.h =
   df.hour |>
   add_row(Value = NA, Std.Error = NA, DF = NA, t.value = NA, p.value = 1.00, hour = 16) |> # adding non-fitted model
-  mutate(group = hour) |> 
+  mutate(group = hour) |>
   mutate(lab = if_else(p.value < 0.001, "p < 0.001", paste0('p = ',round(p.value, 3))))
 
 #### >> 3.2 Monthly extremes ####
@@ -133,7 +130,8 @@ lab.h =
 mod.1.tmax = lme(T.max ~ log(TreeDiv, base = 2) * month.f,
                  random = ~ 1|site/plot/year,
                  data = d.2.1,
-                 correlation=corCAR1())
+                 correlation=corCAR1(),
+                 na.action=na.exclude)
 
 pred.1.max   = ggpredict(model = mod.1.tmax,   terms = c("TreeDiv", 'month.f'))
 
@@ -142,7 +140,7 @@ mod.1.tmax.res = lme(T.max ~ 1,
                      data = d.2.1)
 
 summary(mod.1.tmax)
-Anova(mod.1.tmax, type = "II")
+anova(mod.1.tmax)
 
 d.2.1$res.max = residuals(mod.1.tmax.res) + mod.1.tmax.res$coefficients$fixed
 
@@ -170,7 +168,7 @@ mod.1.tmed = lme(T.med ~ log(TreeDiv, base = 2) * month.f,
                  data = d.2.1,
                  correlation=corCAR1())
 summary(mod.1.tmed)
-Anova(mod.1.tmed, type = "II")
+anova(mod.1.tmed)
 
 pred.1.med   = ggpredict(model = mod.1.tmed,   terms = c("TreeDiv", 'month.f'))
 
@@ -204,7 +202,7 @@ mod.1.tmin = lme(T.min ~ log(TreeDiv, base = 2) * month.f,
                  data = d.2.1,
                  correlation=corCAR1())
 summary(mod.1.tmin)
-Anova(mod.1.tmin, type = "II")
+anova(mod.1.tmin)
 
 pred.1.min   = ggpredict(model = mod.1.tmin,   terms = c("TreeDiv", 'month.f'))
 
@@ -235,12 +233,12 @@ df.out.min <- df.out.min[-1,]
 #### > 4. Figure 1 ####
 #### >> 4.1 Figure 1.A. ####
 p.day =
-  ggplot(data = results.day[[3]],
+  ggplot(data = pred.2,
          aes(x, predicted)) +
-  geom_line(data = results.day[[3]],
+  geom_line(data = pred.2,
             aes(x, predicted),
             col = 'black') +
-  geom_ribbon(data = results.day[[3]], aes(ymin = conf.low, ymax = conf.high), alpha = .1) +
+  geom_ribbon(data = pred.2, aes(ymin = conf.low, ymax = conf.high), alpha = .1) +
   scale_x_continuous(trans = 'log2', breaks = c(1,4,24)) +
   labs(title = "Daily scale", 
        subtitle = "Sp. Rich.: p < 0.001, Hour: p < 0.001, Sp. Rich. x Hour: p < 0.001",
@@ -252,8 +250,8 @@ p.day =
             angle = 90) +
   facet_grid(cols = vars(group),
              labeller = labeller(group = t.lab)) +
-  lims(y = c(min(results.day[[3]]$conf.low, results.day[[3]]$conf.high), 
-             (max(results.day[[3]]$conf.low, results.day[[3]]$conf.high)+1.5))) + 
+  lims(y = c(min(pred.2$conf.low, pred.2$conf.high), 
+             (max(pred.2$conf.low, pred.2$conf.high)+1.5))) + 
   theme_bw() +
   theme(panel.grid = element_blank(), 
         panel.spacing.x = unit(0.6, "lines"), 
@@ -348,5 +346,5 @@ p = ggarrange(p.day,
 p
 
 # Saving
-ggsave(filename = 'Figure1.png', 
+ggsave(filename = 'Figure-1.png', 
        height = 17, width = 28, units = 'cm')

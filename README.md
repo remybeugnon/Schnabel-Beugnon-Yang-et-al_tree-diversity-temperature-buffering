@@ -22,6 +22,8 @@ This folder contains all scripts and data used to build the models and figures o
 
 - Fig3.R: script compiling the data, testing the Structural Equation Models (SEMs) examining potential mediators of tree species richness effects on monthly temperature buffering, and preparing Figure 3
 
+- mod-day-pred.RDS and hourly-model.csv: pre-fitted daily models 
+
 *Datasets:*
 
 - inventory_data.csv: forest inventory measurement 2015 - 2020
@@ -46,6 +48,17 @@ Columns:
   "tmp_celsius": monthly mean temperature
   "tmn_celsius": monthly minimum temperature
   "tmx_celsius": monthly maximum temperature
+
+- spei.csv: macroclimate SPEI estimation at landscape level from CRU
+Columns:
+  "year": measurement year
+  "SPEI12": 12 months SPEI estimation
+  
+- spei1.csv: macroclimate SPEI estimation at landscape level from CRU
+Columns:
+  "year": measurement year
+  "month": measurment month
+  "spei": 1 months SPEI estimation
 
 - microclimate_data.csv.zip: 1 m air temperature measurements
 Columns:

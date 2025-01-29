@@ -33,7 +33,9 @@ invisible(lapply(libs, library, character.only = T))
 
 #### > 1. Loading data ####
 # Climate data
-load("workspace_data.RData")
+# Loading data
+unzip('climate-data.csv.zip')
+df.clim = read.csv('climate-data.csv')
 
 # LAI data
 df.lai <- 
@@ -91,12 +93,24 @@ df.crown.length = df.inventory |>
            as.numeric()) |> 
   mutate(site.plot = str_replace_all(site.plot, '_', '.'))
 
+df.crown.base = df.inventory |> 
+  select(site.plot = 1,grep('.crown.base.height..cm.', names.inv)) |> 
+  pivot_longer(cols = 2:7, 
+               names_to = 'year',
+               values_to = 'crown.base') |> 
+  mutate(year = str_remove_all(year, '.mean.crown.base.height..cm.') |> 
+           str_remove_all('X') |> 
+           as.numeric()) |> 
+  mutate(site.plot = str_replace_all(site.plot, '_', '.'))
+
 df.inventory.1 = 
   df.basal.area |> 
   select(site.plot, year, BA) |> 
   left_join(df.crown.length, 
             by = c('site.plot', 'year')) |>
   left_join(df.mean.height, 
+            by = c('site.plot', 'year')) |>
+  left_join(df.crown.base, 
             by = c('site.plot', 'year'))
 
 # Merging data
@@ -115,9 +129,9 @@ df.explanatory =
 
 d.1 = 
   df.clim |>
-  filter(TreeDiv > 0 & year == 2019 & site == 'A' & !is.na(T)) |>
+  filter(TreeDiv > 0 & year == 2019 & site == 'A' & !is.na(temp)) |>
   group_by(site, plot, month) |>
-  summarise(Buff = mean(T)/sd(T) , 
+  summarise(Buff = mean(temp)/sd(temp) , 
             TreeDiv = mean(TreeDiv)) |>
   left_join(df.explanatory |> 
               mutate(site = str_sub(site.plot,1,1)), 
@@ -180,53 +194,23 @@ d.3 = d.2 |>
   mutate(l.SSCI = log(SSCI,2))
 
 #### > 2. Correlation between variables ####
-cor = cor(d.2 |> 
+cor = cor(d.3 |> 
             ungroup() |>
-            select(Buff, 
-                   crown.length , 
-                   mean.height , ENL, 
-                   MeanFrac,
+            select(Buff.cor, 
+                   Buff, BA,
+                   crown.base, crown.length , 
+                   mean.height,  
+                   ENL, 
                    SSCI , LAI , TreeDiv) |>
             as.matrix()
 )
 
-corrplot(cor, addCoef.col = T)
-
-# PCA analysis
-comp = prcomp(
-  d.2 |> 
-    ungroup() |>
-    select(BA, 
-           crown.length , 
-           mean.height, 
-           MeanFrac, ENL, SSCI, 
-           LAI) |>
-    as.matrix(),
-  center = T,
-  scale. = T
-)
-
-plot(comp)
-
-autoplot(comp, 
-         loadings = T, loadings.label = T, 
-         scale = T) + 
-  theme_bw()
+corrplot(cor,  method = 'ellipse', addCoef.col = T)
 
 d.3 |> 
   filter(month==1) |> 
   group_by(TreeDiv) |>
   summarize(n = n())
-
-cor = cor(d.3 |> 
-            ungroup() |>
-            select(Buff.cor, Buff, BA,
-                   crown.base, crown.length , 
-                   mean.height , ENL, 
-                   SSCI , LAI , TreeDiv) |>
-            as.matrix()
-)
-corrplot(cor, addCoef.col = T)
 
 #### > 3. SEM yearly on monthly data ####
 # Data scaling 
@@ -269,40 +253,6 @@ mod.sem = psem(
 
 summary(mod.sem)
 
-# Addition of missing correlations to fulfill direct separation test
-mod.sem = psem(
-  lme(Buff.cor ~ mean.height + l.SSCI + LAI + l.TreeDiv,
-      data = d.3, 
-      random = ~ 1|plot/month,
-      correlation=corCAR1(form = ~ month),
-            na.action=na.exclude),
-  lme(l.SSCI ~ l.TreeDiv,
-      data = df.SSCI.2, 
-      random = ~ 1|plot,
-            na.action=na.exclude),
-  lme(LAI ~ l.TreeDiv + KoBi + ScSu + QuFa,
-      data = df.lai.2 |> data.frame(), 
-      random = ~ 1|plot,
-            na.action=na.exclude),
-  lme(mean.height ~ l.TreeDiv,
-      data = df.crown.length.2 |> filter(year == 2019), 
-      random = ~ 1|plot,
-            na.action=na.exclude),
-  LAI %~~% l.SSCI,
-  mean.height %~~% l.SSCI,
-  mean.height %~~% LAI,
-  mean.height %~~% KoBi,
-  mean.height %~~% ScSu,
-  mean.height %~~% QuFa,
-  l.SSCI %~~% KoBi,
-  l.SSCI %~~% ScSu,
-  l.SSCI %~~% QuFa,
-  data = d.3 |> data.frame()
-)
-
-summary(mod.sem, standardized = T)
-plot(mod.sem)
-
 #### > 4. Monthly fitting ####
 models.month = 
   1:12 |> 
@@ -330,12 +280,6 @@ models.month =
         LAI %~~% l.SSCI,
         mean.height %~~% l.SSCI,
         mean.height %~~% LAI,
-        mean.height %~~% KoBi,
-        mean.height %~~% ScSu,
-        mean.height %~~% QuFa,
-          l.SSCI %~~% KoBi,
-          l.SSCI %~~% ScSu,
-          l.SSCI %~~% QuFa,
         data = dd |> data.frame()
       )
       summary(mod.dd)$coefficients |>
@@ -354,7 +298,7 @@ plot.models =
 # Smoothing monthly estimates 
 df.plot.est = plot.models |> 
   filter(Response == 'Buff.cor') |> 
-  select(month, est = Std.Estimate, pred = Predictor) |> 
+  select(month, est = Estimate, pred = Predictor) |> 
   pivot_wider(id_cols = 'month', names_from = pred, values_from = est)
 
 df.plot.est = 

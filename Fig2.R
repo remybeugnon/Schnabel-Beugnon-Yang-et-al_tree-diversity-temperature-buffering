@@ -30,40 +30,26 @@ libs <- c(
 invisible(lapply(libs, library, character.only = T))
 
 #### > 2. Data ####
-load("workspace_data.RData")
-
-df.clim.month.sum = df.clim.month.sum %>%
-  filter(TreeDiv > 0)
-
-df.clim.month.sum$year.month = 
-  df.clim.month.sum$year + (df.clim.month.sum$month-1)/12
-
-df.clim.month.sum$month.f = df.clim.month.sum$month %>% factor
-
+unzip('climate-data.csv.zip')
+df.clim = read.csv('climate-data.csv')
 
 d.1.2 = df.clim %>% 
-  group_by(site, plot, year) %>%
-  filter(!is.na(T)) |> 
+  group_by(site, plot, year, TreeDiv) %>%
+  filter(!is.na(temp) & TreeDiv > 0) |> 
   # Calculate buffering
-  summarise(T.buff = mean(T) / sd(T) ,
-            TreeDiv = mean(TreeDiv))
+  summarise(T.buff = mean(temp) / sd(temp))
 
 d.1.2$year = as.factor(d.1.2$year)
 
 d.2.2 = df.clim %>% 
-  filter(!is.na(T)) |> 
-  group_by(site, plot, year, month) %>%
-  summarise(T.buff = mean(T) / sd(T)) %>%
-  left_join(.,
-            df.clim.month.sum %>% 
-              dplyr::select(site,plot,year,month,month.f,year.month,TreeDiv),
-            by = c('site','plot','year','month')
-  ) %>% 
-  mutate(year.month = factor(paste(year, month))) |> 
-  mutate(month.f = factor(month))
+  filter(!is.na(temp) &  TreeDiv > 0) |> 
+  group_by(site, plot, year, month, TreeDiv) %>%
+  summarise(T.buff = mean(temp) / sd(temp)) %>%
+  mutate(month.f = factor(month)) |>
+  mutate(year.month = factor(paste(year, month))) 
 
 df.macro.T = read.csv("macroclimate.csv") %>%
-  filter(year %in% 2014:2020) %>% 
+  filter(year %in% 2015:2020) %>% 
   dplyr::select(year, month, avg.t = tmp_celsius, min.t = tmn_celsius , max.t = tmx_celsius)
 
 df.macro.T.year = df.macro.T %>%
@@ -72,7 +58,7 @@ df.macro.T.year = df.macro.T %>%
             sd.avg.t = sd(avg.t), 
             min.t = mean(min.t),
             max.t = mean(max.t)
-            )
+  )
 
 df.macro.plot =
   df.macro.T %>%
@@ -85,20 +71,18 @@ df.macro.plot =
   ) %>%
   mutate(group = as.factor(month))
 
-df.macro.spei = read.csv("macroclimate.csv") %>%
-  filter(year %in% 2014:2020) %>% 
-  dplyr::select(date, year,spei = SPEI12) %>%
-  filter(str_detect(date,'-12-')) %>% 
-  dplyr::select(-date)
+df.macro.spei = read.csv("spei.csv") %>%
+  dplyr::select(year, spei = SPEI12)
 
 #### > 3. Statistical analyses ####
 #### >> 3.1 Monthly buffering ####
 mod.2.2 = lme(T.buff ~ log(TreeDiv, base = 2) * month.f,
               random = ~ 1|site/plot/year,
               data = d.2.2,
-              correlation=corCAR1(form = ~year.month))
+              correlation=corCAR1(form = ~year.month),
+              na.action=na.exclude)
 summary(mod.2.2)
-Anova(mod.2.2)
+anova(mod.2.2)
 
 df.out <- matrix(nrow = 1, ncol = 6) %>% as.data.frame() 
 colnames(df.out) <- c("Value", "Std.Error", "DF", "t-value", "p-value", "month")
@@ -106,7 +90,8 @@ for (m in 1:12) {
   mod.month <- lme(T.buff ~ log(TreeDiv, base = 2),
                    random = ~ 1|site/plot/year,
                    data = d.2.2 %>% filter(month == m),
-                   correlation=corCAR1(form = ~year))
+                   correlation=corCAR1(form = ~year),
+                   na.action=na.exclude)
   
   df <- summary(mod.month)$tTable[2,] %>% 
     matrix(nrow=1) %>% 
@@ -123,7 +108,8 @@ df.out <- df.out[-1,]
 mod.2.2.res = lme(T.buff ~ 1,
                   random = ~ 1|site/plot/year,
                   data = d.2.2,
-                  correlation=corCAR1(form = ~year.month))
+                  correlation=corCAR1(form = ~year.month),
+                  na.action=na.exclude)
 
 d.2.2$res = residuals(mod.2.2.res) + mod.2.2.res$coefficients$fixed
 d.2.2$group = d.2.2$month.f
@@ -140,21 +126,24 @@ ann_text <- data.frame(
 mod.1.2 = lme(T.buff ~ log(TreeDiv, base = 2) * year, 
               random = ~ 1|site/plot,
               data = d.1.2,
-              correlation=corCAR1(form = ~year))
+              correlation=corCAR1(form = ~year),
+              na.action=na.exclude)
 summary(mod.1.2)
-Anova(mod.1.2)
+anova(mod.1.2)
 
 mod.1.2.3 = lme(T.buff ~ log(TreeDiv) , 
                 random = ~ 1|site/plot/year,
                 data = d.1.2,
-                correlation=corCAR1())
+                correlation=corCAR1(),
+                na.action=na.exclude)
 
 summary(mod.1.2.3)
 
 mod.1.2.3.res = lme(T.buff ~ 1, 
                     random = ~ 1|site/plot,
                     data = d.1.2,
-                    correlation=corCAR1())
+                    correlation=corCAR1(),
+                    na.action=na.exclude)
 mod.1.2.3.res
 d.1.2$res = residuals(mod.1.2.3.res) + mod.1.2.3.res$coefficients$fixed 
 d.1.2$group = d.1.2$year
@@ -164,13 +153,14 @@ pred.1.2.3 = ggpredict(model = mod.1.2.3, terms = c("TreeDiv", 'year'))
 
 # Test tree species richness - SPEI interaction
 mod.1.2.spei = lme(T.buff ~ log(TreeDiv, base = 2) * spei, 
-                random = ~ 1|site/plot,
-                data = d.1.2 |> 
-                  left_join(df.macro.spei |> 
-                            mutate(year = as.factor(year))),
-                correlation = corCAR1(form = ~year))
+                   random = ~ 1|site/plot,
+                   data = d.1.2 |> 
+                     left_join(df.macro.spei |> 
+                                 mutate(year = as.factor(year))),
+                   correlation = corCAR1(form = ~year),
+                   na.action=na.exclude)
 summary(mod.1.2.spei)
-Anova(mod.1.2.spei)
+anova(mod.1.2.spei)
 
 #### > 4. Figure 2 ####
 #### >> 4.1 Figure 2.A. ####
@@ -222,24 +212,20 @@ p.month =
 p.month
 
 #### >> 4.2 Figure 2.B. ####
-
 df.macro.T = read.csv("macroclimate.csv") %>%
-  filter(year %in% 2014:2020) %>% 
+  filter(year %in% 2015:2020) %>% 
   select(year, month, avg.t = tmp_celsius, min.t = tmn_celsius , max.t = tmx_celsius)
 
-df.macro.spei = read.csv("macroclimate.csv") %>%
-  filter(year %in% 2014:2020) %>% 
-  select(date, year, month, spei = SPEI1) %>%
-  select(-date)
+df.macro.spei.1 = read.csv("spei1.csv")
 
 # Montly df 
 d.1 = df.clim %>% 
-  filter(TreeDiv > 0 & year != 2014 & !is.na(T)) %>%
+  filter(TreeDiv > 0 & !is.na(temp)) %>%
   group_by(site, plot, year, month) %>%
-  summarise(Buff = mean(T)/ sd(T) , 
-            T.max = median(T[T>quantile(T,probs=c(.95))]),
-            T.med = median(T),
-            T.min = median(T[T<quantile(T,probs=c(.05))]),
+  summarise(Buff = mean(temp)/ sd(temp) , 
+            T.max = median(temp[temp>quantile(temp,probs=c(.95))]),
+            T.med = median(temp),
+            T.min = median(temp[temp<quantile(temp,probs=c(.05))]),
             TreeDiv = mean(TreeDiv))
 
 df.out <- matrix(nrow = 1, ncol = 7) %>% as.data.frame() 
@@ -248,7 +234,8 @@ for (y in 2015:2020) {
   for (m in 1:12) {
     mod.month <- lme(Buff~ log(TreeDiv, base = 2),
                      random = ~ 1|site/plot,
-                     data = d.1 %>% filter(month == m, year == y))
+                     data = d.1 %>% filter(month == m, year == y),
+                     na.action=na.exclude)
     
     df <- summary(mod.month)$tTable[2,] %>% matrix(nrow=1) %>% as.data.frame()
     colnames(df) <- c("Value", "Std.Error", "DF", "t-value", "p-value")
@@ -263,7 +250,7 @@ df.out <- df.out[-1,]
 df.out = 
   df.out |> 
   left_join(df.macro.T, by = c('year', 'month')) |> 
-  left_join(df.macro.spei, by = c('year', 'month'))
+  left_join(df.macro.spei.1, by = c('year', 'month'))
 
 p.SPEI = 
   ggplot(data = df.out, aes(y = Value, x = spei)) + 
@@ -289,13 +276,13 @@ p.SPEI
 df.macro.T.year$group = df.macro.T.year$year %>% factor
 df.macro.spei$group = df.macro.spei$year %>% factor
 pred.1.2.p = left_join(pred.1.2  %>% data.frame(), 
-                     df.macro.spei %>% dplyr::select(group, spei),
-                     by = c('group'))
+                       df.macro.spei %>% dplyr::select(group, spei),
+                       by = c('group'))
 df.macro.spei$year = df.macro.spei$year %>% factor
 d.1.2 = left_join(d.1.2  %>% data.frame(), 
-                       df.macro.spei %>% 
+                  df.macro.spei %>% 
                     dplyr::select(year, spei),
-                       by = c('year'))
+                  by = c('year'))
 
 # Second axis conversion coefficients
 coef.1 = 6
@@ -315,13 +302,13 @@ p.year =
                 color = spei),
             lty = 2, linewidth = 1) +
   geom_label(data = data.frame(
-                      x = 27.5,
-                      y = c(2.22, 2.03, 2.095, 1.97, 2.155, 2.28),
-                      label = seq(2015,2020)
-                      ),
-             aes(x = x, y = y, label = label),
-             size = 3,
-             color = 'gray50') +
+    x = 27.5,
+    y = c(2.22, 2.03, 2.095, 1.97, 2.155, 2.28),
+    label = seq(2015,2020)
+  ),
+  aes(x = x, y = y, label = label),
+  size = 3,
+  color = 'gray50') +
   annotate(geom = 'text', x = 20 , y = 1.75, label = 'p < 0.001') + 
   scale_x_continuous(trans = 'log2', breaks = c(1,2,4,8,16, 24)) + 
   scale_color_gradient(low = 'red', high = 'blue',
@@ -351,6 +338,6 @@ p = ggarrange(p.month,
 p
 
 # Saving figure
-ggsave(filename = 'Figure2.png', 
+ggsave(filename = 'Figure-2.png', 
        height = 25, width = 20, 
        units = 'cm')
